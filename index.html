@@ -33,63 +33,21 @@ let initialPop={L:0,R:0};
 
 /* ===== 構造物 ===== */
 class House{
- constructor(x,y,side){
-  this.pos=createVector(x,y);
-  this.side=side;
-  this.r=70;
- }
- show(){
-  noFill();
-  stroke(this.side==="L"?120:30,60,60,40);
-  circle(this.pos.x,this.pos.y,this.r*2);
- }
+ constructor(x,y,side){ this.pos=createVector(x,y); this.side=side; this.r=70; }
+ show(){ noFill(); stroke(this.side==="L"?120:30,60,60,40); circle(this.pos.x,this.pos.y,this.r*2); }
 }
-
 class City{
- constructor(x,y,side){
-  this.pos=createVector(x,y);
-  this.side=side;
-  this.r=140;
- }
- show(){
-  noFill();
-  stroke(this.side==="L"?120:30,80,80,60);
-  strokeWeight(2);
-  circle(this.pos.x,this.pos.y,this.r*2);
-  strokeWeight(1);
- }
+ constructor(x,y,side){ this.pos=createVector(x,y); this.side=side; this.r=140; }
+ show(){ noFill(); stroke(this.side==="L"?120:30,80,80,60); strokeWeight(2); circle(this.pos.x,this.pos.y,this.r*2); strokeWeight(1); }
 }
-
 class Nation{
- constructor(side){
-  this.side=side;
-  this.center=createVector(
-   side==="L"?borderX*0.25:borderX*0.75,
-   height/2
-  );
-  this.r=280;
-  this.wealth=1000;
- }
+ constructor(side){ this.side=side; this.center=createVector(side==="L"?borderX*0.25:borderX*0.75,height/2); this.r=280; this.wealth=1000; }
  taxRate(){ return this.side==="L"?0.08:0.05; }
- show(){
-  noFill();
-  stroke(this.side==="L"?120:30,100,100,40);
-  strokeWeight(3);
-  circle(this.center.x,this.center.y,this.r*2);
-  strokeWeight(1);
- }
+ show(){ noFill(); stroke(this.side==="L"?120:30,100,100,40); strokeWeight(3); circle(this.center.x,this.center.y,this.r*2); strokeWeight(1); }
 }
 
 /* ===== 企業 ===== */
-class Company{
- constructor(side){
-  this.side=side;
-  this.profit=0;
- }
- operate(){
-  this.profit+=this.side==="R"?3:1.5;
- }
-}
+class Company{ constructor(side){ this.side=side; this.profit=0; } operate(){ this.profit+=this.side==="R"?3:1.5; } }
 let companies=[new Company("L"),new Company("R")];
 
 /* ===== 生物 ===== */
@@ -101,45 +59,30 @@ class Organism{
   this.side=side;
   this.isLeader=isLeader;
   this.isNationLeader=isNationLeader;
-  this.health=1;
-  this.age=0;
-  this.money=5;
-  this.childrenCount=0;
-  this.maxChildren=4;
-  this.reproduceCooldown=0;
+  this.health=1; this.age=0; this.money=5;
+  this.childrenCount=0; this.maxChildren=4; this.reproduceCooldown=0;
   this.cooldownMax=side==="L"?900:1200;
-
-  this.dna={
-   size:isNationLeader?24:isLeader?18:random(8,12),
-   speed:side==="R"?random(1.8,2.8):random(1.2,2.0),
-   sense:side==="R"?180:140,
-   hue:side==="L"?120:30
-  };
+  this.dna={ size:isNationLeader?24:isLeader?18:random(8,12),
+             speed:side==="R"?random(1.8,2.8):random(1.2,2.0),
+             sense:side==="R"?180:140,
+             hue:side==="L"?120:30 };
  }
 
  update(){
   this.age++;
   if(this.reproduceCooldown>0) this.reproduceCooldown--;
+  if(!this.isLeader&&!this.isNationLeader) this.health-=this.side==="R"?0.00035:0.00025;
 
-  if(!this.isLeader&&!this.isNationLeader){
-   this.health-=this.side==="R"?0.00035:0.00025;
-  }
-
-  for(let h of houses)
-   if(h.side===this.side&&dist(this.pos.x,this.pos.y,h.pos.x,h.pos.y)<h.r)
-    this.health+=this.side==="L"?0.0025:0.0012;
-
-  for(let c of cities)
-   if(c.side===this.side&&dist(this.pos.x,this.pos.y,c.pos.x,c.pos.y)<c.r)
-    this.health+=this.side==="L"?0.003:0.0015;
-
-  for(let n of nations)
-   if(n.side===this.side&&dist(this.pos.x,this.pos.y,n.center.x,n.center.y)<n.r)
-    this.health+=this.side==="L"?0.0035:0.002;
+  for(let h of houses) if(h.side===this.side && dist(this.pos.x,this.pos.y,h.pos.x,h.pos.y)<h.r) this.health+=this.side==="L"?0.0025:0.0012;
+  for(let c of cities) if(c.side===this.side && dist(this.pos.x,this.pos.y,c.pos.x,c.pos.y)<c.r) this.health+=this.side==="L"?0.003:0.0015;
+  for(let n of nations) if(n.side===this.side && dist(this.pos.x,this.pos.y,n.center.x,n.center.y)<n.r) this.health+=this.side==="L"?0.0035:0.002;
 
   this.health=constrain(this.health,0,1);
 
-  if(warMode) this.warMove();
+  // リーダーの固定位置
+  if(this.isLeader) this.pos.set(this.side==="L"?borderX*0.15:borderX*0.85,height/2);
+  else if(this.isNationLeader) this.pos.set(this.side==="L"?borderX*0.25:borderX*0.75,height/2);
+  else if(warMode) this.warMove();
   else this.move();
 
   this.vel.add(this.acc).limit(this.dna.speed*(0.6+this.health));
@@ -149,38 +92,26 @@ class Organism{
 
  move(){
   let target=null,best=1e9;
-  for(let f of foods){
-   let d=p5.Vector.dist(this.pos,f);
-   if(d<this.dna.sense&&d<best){best=d;target=f}
-  }
+  for(let f of foods){ let d=p5.Vector.dist(this.pos,f); if(d<this.dna.sense&&d<best){best=d;target=f} }
   if(target){
    this.applyForce(p5.Vector.sub(target,this.pos).normalize().mult(0.25));
    if(best<this.dna.size){
     foods.splice(foods.indexOf(target),1);
     this.health+=0.6;
-
-    if(this.side==="L")
-     organisms.forEach(o=>{
-      if(o.side==="L"&&dist(o.pos.x,o.pos.y,this.pos.x,this.pos.y)<100)
-       o.health=min(1,o.health+0.12);
-     });
+    if(this.side==="L") organisms.forEach(o=>{ if(o.side==="L" && dist(o.pos.x,o.pos.y,this.pos.x,this.pos.y)<100) o.health=min(1,o.health+0.12); });
    }
-  }else{
-   this.applyForce(p5.Vector.random2D().mult(this.side==="L"?0.08:0.18));
-  }
+  }else this.applyForce(p5.Vector.random2D().mult(this.side==="L"?0.08:0.18));
  }
 
  warMove(){
-  let enemies=organisms.filter(o=>o.side!==this.side);
+  let enemies=organisms.filter(o=>o.side!==this.side&&!o.isLeader&&!o.isNationLeader);
   if(!enemies.length) return;
-  let t=enemies.reduce((a,b)=>dist(this.pos.x,this.pos.y,a.pos.x,a.pos.y)<
-                         dist(this.pos.x,this.pos.y,b.pos.x,b.pos.y)?a:b);
+  let t=enemies.reduce((a,b)=>dist(this.pos.x,this.pos.y,a.pos.x,a.pos.y)<dist(this.pos.x,this.pos.y,b.pos.x,b.pos.y)?a:b);
   this.applyForce(p5.Vector.sub(t.pos,this.pos).normalize().mult(0.4));
-
   if(dist(this.pos.x,this.pos.y,t.pos.x,t.pos.y)<this.dna.size*2){
    let myN=nations.find(n=>n.side===this.side);
    let chance=map(myN.wealth,500,3000,0.3,0.7,true);
-   (random()<chance)?t.health=0:this.health=0;
+   if(random()<chance) t.health=0; else this.health=0;
   }
  }
 
@@ -191,49 +122,28 @@ class Organism{
   if(random()>0.3||random()>0.02) return null;
 
   this.childrenCount++; o.childrenCount++;
-  this.reproduceCooldown=this.cooldownMax;
-  o.reproduceCooldown=o.cooldownMax;
-
-  houses.push(new House(
-   (this.pos.x+o.pos.x)/2,
-   (this.pos.y+o.pos.y)/2,
-   this.side
-  ));
+  this.reproduceCooldown=this.cooldownMax; o.reproduceCooldown=o.cooldownMax;
+  houses.push(new House((this.pos.x+o.pos.x)/2,(this.pos.y+o.pos.y)/2,this.side));
   return new Organism(this.pos.x,this.pos.y,this.side);
  }
 
  applyForce(f){this.acc.add(f)}
  dead(){return !this.isLeader&&!this.isNationLeader&&(this.health<=0||this.age>2400)}
- show(){
-  fill(this.dna.hue,80,this.isNationLeader?100:this.isLeader?90:80,90);
-  noStroke();
-  circle(this.pos.x,this.pos.y,this.dna.size*2);
- }
+ show(){ fill(this.dna.hue,80,this.isNationLeader?100:this.isLeader?90:80,90); noStroke(); circle(this.pos.x,this.pos.y,this.dna.size*2); }
 }
 
 /* ===== 経済 ===== */
 function yearlyEconomy(){
  nations.forEach(n=>{
-  organisms.filter(o=>o.side===n.side).forEach(o=>{
-   let tax=o.money*n.taxRate();
-   o.money-=tax;
-   n.wealth+=tax;
-  });
-
-  organisms.filter(o=>o.side===n.side).forEach(o=>{
-   o.health+=n.side==="L"?0.05:0.01;
-   o.health=min(1,o.health);
-  });
+  organisms.filter(o=>o.side===n.side).forEach(o=>{ let tax=o.money*n.taxRate(); o.money-=tax; n.wealth+=tax; });
+  organisms.filter(o=>o.side===n.side).forEach(o=>{ o.health+=n.side==="L"?0.05:0.01; o.health=min(1,o.health); });
  });
  companies.forEach(c=>c.operate());
 }
 
 /* ===== p5 ===== */
 function setup(){
- createCanvas(windowWidth,windowHeight);
- colorMode(HSB,360,100,100,100);
- borderX=width/2;
-
+ createCanvas(windowWidth,windowHeight); colorMode(HSB,360,100,100,100); borderX=width/2;
  for(let i=0;i<500;i++) foods.push(createVector(random(width),random(height)));
 
  leaders.L=new Organism(borderX*0.25,height/2,"L",true);
@@ -254,73 +164,53 @@ document.getElementById("cmd").addEventListener("keydown",e=>{
 });
 
 function draw(){
- background(0,30,12);
- time++; if(time%60===0){year++; yearlyEconomy();}
-
- stroke(0,0,80,40);
- line(borderX,0,borderX,height);
+ background(0,30,12); time++; if(time%60===0){year++; yearlyEconomy();}
+ stroke(0,0,80,40); line(borderX,0,borderX,height);
 
  if(random()<0.9) foods.push(createVector(random(borderX),random(height)));
  if(random()<0.7) foods.push(createVector(random(borderX,width),random(height)));
 
- noStroke();
- fill(100,80,80,120);
- foods.forEach(f=>circle(f.x,f.y,4));
+ noStroke(); fill(100,80,80,120); foods.forEach(f=>circle(f.x,f.y,4));
 
  if(time%240===0){
-  houses.forEach(h=>{
-   let nearby=houses.filter(o=>o.side===h.side&&dist(o.pos.x,o.pos.y,h.pos.x,h.pos.y)<120);
-   if(nearby.length>=3&&!cities.some(c=>dist(c.pos.x,c.pos.y,h.pos.x,h.pos.y)<100))
-    cities.push(new City(h.pos.x,h.pos.y,h.side));
-  });
+  houses.forEach(h=>{ let nearby=houses.filter(o=>o.side===h.side&&dist(o.pos.x,o.pos.y,h.pos.x,h.pos.y)<120);
+    if(nearby.length>=3&&!cities.some(c=>dist(c.pos.x,c.pos.y,h.pos.x,h.pos.y)<100)) cities.push(new City(h.pos.x,h.pos.y,h.side)); });
  }
 
  if(time%600===0){
-  ["L","R"].forEach(s=>{
-   if(cities.filter(c=>c.side===s).length>=2&&!nations.some(n=>n.side===s)){
-    nations.push(new Nation(s));
-    organisms.push(new Organism(
-     s==="L"?borderX*0.2:borderX*0.8,height/2,s,true,true));
-   }
-  });
+  ["L","R"].forEach(s=>{ if(cities.filter(c=>c.side===s).length>=2&&!nations.some(n=>n.side===s)){
+    nations.push(new Nation(s)); organisms.push(new Organism(s==="L"?borderX*0.25:borderX*0.75,height/2,s,true,true)); } });
  }
 
- nations.forEach(n=>n.show());
- cities.forEach(c=>c.show());
- houses.forEach(h=>h.show());
+ nations.forEach(n=>n.show()); cities.forEach(c=>c.show()); houses.forEach(h=>h.show());
 
  let l=0,r=0;
  for(let i=organisms.length-1;i>=0;i--){
-  let o=organisms[i];
-  o.update(); o.show();
+  let o=organisms[i]; o.update(); o.show();
   o.side==="L"?l++:r++;
-  for(let j=i-1;j>=0;j--){
-   let child=o.tryReproduce(organisms[j]);
-   if(child) organisms.push(child);
-  }
+  for(let j=i-1;j>=0;j--){ let child=o.tryReproduce(organisms[j]); if(child) organisms.push(child);}
   if(o.dead()) organisms.splice(i,1);
  }
 
  if(warMode){
   if(l<=initialPop.L*0.1||r<=initialPop.R*0.1){
-   warMode=false;
-   let win=l>r?"L":"R";
-   for(let i=0;i<100;i++)
-    foods.push(createVector(win==="L"?random(borderX):random(borderX,width),random(height)));
+   warMode=false; let win=l>r?"L":"R";
+   for(let i=0;i<100;i++) foods.push(createVector(win==="L"?random(borderX):random(borderX,width),random(height)));
    foods.splice(0,100);
   }
  }
 
- yearSpan.textContent=year;
- pop.textContent=organisms.length;
- left.textContent=l;
- right.textContent=r;
- cities.textContent=cities.length;
- nations.textContent=nations.length;
+ document.getElementById("year").textContent=year;
+ document.getElementById("pop").textContent=organisms.length;
+ document.getElementById("left").textContent=l;
+ document.getElementById("right").textContent=r;
+ document.getElementById("cities").textContent=cities.length;
+ document.getElementById("nations").textContent=nations.length;
 }
 </script>
 </body>
 </html>
+
 
 
 
