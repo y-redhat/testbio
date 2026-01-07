@@ -9,45 +9,15 @@ body{margin:0;background:#000;overflow:hidden;font-family:monospace}
 #ui{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);color:#0f0}
 #cmd{position:absolute;top:6px;left:50%;transform:translateX(-50%);
 background:#000;color:#0f0;border:1px solid #0f0;padding:4px}
-#graphUI{position:absolute;top:10px;right:10px;color:#0f0;background:rgba(0,0,0,0.7);padding:4px}
-#sliders{position:absolute;top:50px;right:10px;color:#0f0;background:rgba(0,0,0,0.7);padding:4px;display:none;}
+#graphUI{position:absolute;top:6px;right:6px;color:#0f0;background:rgba(0,0,0,0.7);padding:4px;font-size:12px;}
+#sliders{position:absolute;top:50px;right:6px;color:#0f0;background:rgba(0,0,0,0.7);padding:4px;display:none;}
+#toggleSliders{position:absolute;top:30px;right:6px;}
 </style>
 </head>
 <body>
 
-
- 
-<!-- 既存 body の上部に追加 -->
-<div id="graphUI" style="position:absolute;top:6px;right:6px;color:#0f0;font-size:12px;">
-  <input type="checkbox" id="showGraph" checked> グラフ表示
-</div>
-
-<div id="sliders" style="position:absolute;top:50px;right:6px;color:#0f0;background:#000;padding:4px;">
-  税率: <input type="range" id="taxRate" min="0" max="0.2" step="0.01" value="0.08"><br>
-  再配分: <input type="range" id="redisRate" min="0" max="0.5" step="0.01" value="0.05"><br>
-  企業利益: <input type="range" id="profitRate" min="0" max="10" step="0.1" value="1.5"><br>
-  繁殖率: <input type="range" id="reproRate" min="0" max="0.5" step="0.01" value="0.3"><br>
-</div>
-
-<button id="toggleSliders" style="position:absolute;top:30px;right:6px;">スライダー表示切替</button>
-
-
- 
- 
-
-<input id="cmd" placeholder="command: war">
-<div id="ui">
-YEAR:<span id="year">0</span> |
-POP:<span id="pop">0</span> |
-COMM:<span id="left">0</span> |
-CAP:<span id="right">0</span> |
-CITIES:<span id="cities">0</span> |
-NATIONS:<span id="nations">0</span>
-</div>
-
 <div id="graphUI">
-陣営特徴<br>
-<input type="checkbox" id="showGraph" checked> 表示
+  <input type="checkbox" id="showGraph" checked> グラフ表示
 </div>
 
 <div id="sliders">
@@ -58,48 +28,49 @@ NATIONS:<span id="nations">0</span>
 忠実モード: <input type="checkbox" id="loyalMode"> オン
 </div>
 
+<button id="toggleSliders">スライダー表示切替</button>
+
+<input id="cmd" placeholder="command: war">
+
+<div id="ui">
+YEAR:<span id="year">0</span> |
+POP:<span id="pop">0</span> |
+COMM:<span id="left">0</span> |
+CAP:<span id="right">0</span> |
+CITIES:<span id="cities">0</span> |
+NATIONS:<span id="nations">0</span>
+</div>
+
 <script>
 let organisms=[], foods=[], houses=[], cities=[], nations=[];
 let time=0, year=0, borderX;
 let leaders={L:null,R:null};
 let warMode=false;
 let initialPop={L:0,R:0};
-let showSliders=false;
 
 // ===== 構造物 =====
-class House{
- constructor(x,y,side){this.pos=createVector(x,y);this.side=side;this.r=70;}
- show(){noFill();stroke(this.side==="L"?120:30,60,60,40);circle(this.pos.x,this.pos.y,this.r*2);}
-}
-class City{
- constructor(x,y,side){this.pos=createVector(x,y);this.side=side;this.r=140;this.side=side;}
- show(){noFill();stroke(this.side==="L"?120:30,80,80,60);strokeWeight(2);circle(this.pos.x,this.pos.y,this.r*2);strokeWeight(1);}
-}
+class House{constructor(x,y,side){this.pos=createVector(x,y);this.side=side;this.r=70;}
+show(){noFill();stroke(this.side==="L"?120:30,60,60,40);circle(this.pos.x,this.pos.y,this.r*2);}}
+class City{constructor(x,y,side){this.pos=createVector(x,y);this.side=side;this.r=140;this.side=side;}
+show(){noFill();stroke(this.side==="L"?120:30,80,80,60);strokeWeight(2);circle(this.pos.x,this.pos.y,this.r*2);strokeWeight(1);}}
 class Nation{
  constructor(side){
-  this.side=side;
-  this.center=createVector(side==="L"?borderX*0.25:borderX*0.75,height/2);
-  this.r=280;
-  this.wealth=1000;
-  this.taxRate=side==="L"?0.08:0.05;
-  this.redisRate=side==="L"?0.05:0.02;
-  this.deadCount=0;
+  this.side=side; this.center=createVector(side==="L"?borderX*0.25:borderX*0.75,height/2);
+  this.r=280; this.wealth=1000; this.taxRate=side==="L"?0.08:0.05;
+  this.redisRate=side==="L"?0.05:0.02; this.deadCount=0;
  }
  show(){noFill();stroke(this.side==="L"?120:30,100,100,40);strokeWeight(3);circle(this.center.x,this.center.y,this.r*2);strokeWeight(1);}
 }
 
 // ===== 企業 =====
-class Company{
- constructor(side){this.side=side;this.profit=side==="L"?1.5:3;}
- operate(){this.profit+=this.side==="R"?3:1.5;}
-}
+class Company{constructor(side){this.side=side;this.profit=side==="L"?1.5:3;} operate(){this.profit+=this.side==="R"?3:1.5;}}
 let companies=[new Company("L"),new Company("R")];
 
 // ===== 生物 =====
 class Organism{
  constructor(x,y,side,isLeader=false,isNationLeader=false){
-  this.pos=createVector(x,y);this.vel=p5.Vector.random2D();this.acc=createVector();
-  this.side=side;this.isLeader=isLeader;this.isNationLeader=isNationLeader;
+  this.pos=createVector(x,y); this.vel=p5.Vector.random2D(); this.acc=createVector();
+  this.side=side; this.isLeader=isLeader; this.isNationLeader=isNationLeader;
   this.health=1; this.age=0; this.money=5; this.childrenCount=0;
   this.maxChildren=4; this.reproduceCooldown=0;
   this.cooldownMax=side==="L"?900:1200;
@@ -111,18 +82,14 @@ class Organism{
  update(){
   this.age++; if(this.reproduceCooldown>0)this.reproduceCooldown--;
   if(!this.isLeader&&!this.isNationLeader) this.health-=this.side==="R"?0.00035:0.00025;
-  // 家・都市・国家補正
   houses.forEach(h=>{if(h.side===this.side&&dist(this.pos.x,this.pos.y,h.pos.x,h.pos.y)<h.r)this.health+=this.side==="L"?0.0025:0.0012;});
   cities.forEach(c=>{if(c.side===this.side&&dist(this.pos.x,this.pos.y,c.pos.x,c.pos.y)<c.r)this.health+=this.side==="L"?0.003:0.0015;});
   nations.forEach(n=>{if(n.side===this.side&&dist(this.pos.x,this.pos.y,n.center.x,n.center.y)<n.r)this.health+=this.side==="L"?0.0035:0.002;});
   this.health=constrain(this.health,0,1);
-
-  // 餓死強化
   if(random()>0.9995&&this.health<0.4)this.health-=0.05;
-
   if(warMode)this.warMove(); else this.move();
   this.vel.add(this.acc).limit(this.dna.speed*(0.6+this.health));
-  this.pos.add(this.vel);this.acc.mult(0);
+  this.pos.add(this.vel); this.acc.mult(0);
  }
  move(){
   let target=null,best=1e9;
@@ -147,7 +114,7 @@ class Organism{
   if(this.side!==o.side||this.isLeader||o.isLeader) return null;
   if(this.reproduceCooldown||o.reproduceCooldown) return null;
   if(this.childrenCount>=this.maxChildren||o.childrenCount>=o.maxChildren) return null;
-  if(random()>document.getElementById("reproL").value||random()>0.02) return null;
+  if(random()>parseFloat(document.getElementById("reproL").value)||random()>0.02) return null;
   this.childrenCount++; o.childrenCount++; this.reproduceCooldown=this.cooldownMax; o.reproduceCooldown=o.cooldownMax;
   houses.push(new House((this.pos.x+o.pos.x)/2,(this.pos.y+o.pos.y)/2,this.side));
   return new Organism(this.pos.x,this.pos.y,this.side);
@@ -169,7 +136,6 @@ function yearlyEconomy(){
   });
  });
  companies.forEach(c=>c.operate());
-  // 忠実モード自動調整
  if(document.getElementById("loyalMode").checked){
   nations.forEach(n=>{n.taxRate+=random(-0.005,0.005); n.redisRate+=random(-0.005,0.005);});
  }
@@ -184,6 +150,7 @@ function setup(){
  for(let i=0;i<12;i++) organisms.push(new Organism(random(borderX),random(height),"L"));
  for(let i=0;i<12;i++) organisms.push(new Organism(random(borderX,width),random(height),"R"));
  document.getElementById("cmd").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.value==="war"){warMode=true;initialPop.L=organisms.filter(o=>o.side==="L").length;initialPop.R=organisms.filter(o=>o.side==="R").length;e.target.value="";}});
+ document.getElementById("toggleSliders").onclick = ()=>{let s=document.getElementById("sliders"); s.style.display=s.style.display==="none"?"block":"none";}
 }
 
 function draw(){
@@ -216,26 +183,18 @@ function draw(){
   if(o.dead()) organisms.splice(i,1);
  }
 
- // 革命判定
- nations.forEach(n=>{
-  if(warMode&&n.deadCount/initialPop[n.side]>0.3){
-   let shift=Math.floor(initialPop[n.side]*0.3);
-   organisms.filter(o=>o.side===n.side).sort((a,b)=>a.health-b.health).slice(0,shift).forEach(o=>o.side=n.side==="L"?"R":"L");
-   n.deadCount=0;
-  }
- });
+ nations.forEach(n=>{if(warMode&&n.deadCount/initialPop[n.side]>0.3){let shift=Math.floor(initialPop[n.side]*0.3);
+  organisms.filter(o=>o.side===n.side).sort((a,b)=>a.health-b.health).slice(0,shift).forEach(o=>o.side=n.side==="L"?"R":"L"); n.deadCount=0;}});
 
- if(warMode){
-  if(l<=initialPop.L*0.1||r<=initialPop.R*0.1){
-   warMode=false; let win=l>r?"L":"R";
-   for(let i=0;i<100;i++) foods.push(createVector(win==="L"?random(borderX):random(borderX,width),random(height)));
-   foods.splice(0,100);
-  }
- }
+ if(warMode){if(l<=initialPop.L*0.1||r<=initialPop.R*0.1){warMode=false; let win=l>r?"L":"R"; for(let i=0;i<100;i++) foods.push(createVector(win==="L"?random(borderX):random(borderX,width),random(height))); foods.splice(0,100);}}
 
  // グラフ表示
  if(document.getElementById("showGraph").checked){
-  fill(0,0,0,180); rect(width-160,10,150,80); fill(120,80,80); rect(width-150,20,60,l*60/(l+r+1)); fill(30,80,80); rect(width-80,20,60,r*60/(l+r+1));
+  fill(0,0,0,180); rect(width-160,10,150,80);
+  fill(120,80,80); rect(width-150,20,60,l*60/(l+r+1));
+  fill(30,80,80); rect(width-80,20,60,r*60/(l+r+1));
+  fill(0,255,0); textSize(12); text("共産主義",width-150,15);
+  fill(255,165,0); text("資本主義",width-80,15);
  }
 
  document.getElementById("year").textContent=year;
@@ -245,22 +204,6 @@ function draw(){
  document.getElementById("cities").textContent=cities.length;
  document.getElementById("nations").textContent=nations.length;
 }
-
-// スライダー表示/非表示切替
-document.getElementById("toggleSliders").onclick = ()=>{
-  let s = document.getElementById("sliders");
-  s.style.display = s.style.display==="none"?"block":"none";
-}
-
-// draw関数内で右上グラフ描画
-if(document.getElementById("showGraph").checked){
-  fill(0,0,0,180); rect(width-160,10,150,80);
-  fill(120,80,80); rect(width-150,20,60,l*60/(l+r+1)); // 共産主義
-  fill(30,80,80); rect(width-80,20,60,r*60/(l+r+1));    // 資本主義
-  fill(0,255,0); text("共産主義",width-150,15);
-  fill(255,165,0); text("資本主義",width-80,15);
-}
-
 </script>
 </body>
 </html>
