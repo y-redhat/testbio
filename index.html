@@ -15,6 +15,26 @@ background:#000;color:#0f0;border:1px solid #0f0;padding:4px}
 </head>
 <body>
 
+
+ 
+<!-- 既存 body の上部に追加 -->
+<div id="graphUI" style="position:absolute;top:6px;right:6px;color:#0f0;font-size:12px;">
+  <input type="checkbox" id="showGraph" checked> グラフ表示
+</div>
+
+<div id="sliders" style="position:absolute;top:50px;right:6px;color:#0f0;background:#000;padding:4px;">
+  税率: <input type="range" id="taxRate" min="0" max="0.2" step="0.01" value="0.08"><br>
+  再配分: <input type="range" id="redisRate" min="0" max="0.5" step="0.01" value="0.05"><br>
+  企業利益: <input type="range" id="profitRate" min="0" max="10" step="0.1" value="1.5"><br>
+  繁殖率: <input type="range" id="reproRate" min="0" max="0.5" step="0.01" value="0.3"><br>
+</div>
+
+<button id="toggleSliders" style="position:absolute;top:30px;right:6px;">スライダー表示切替</button>
+
+
+ 
+ 
+
 <input id="cmd" placeholder="command: war">
 <div id="ui">
 YEAR:<span id="year">0</span> |
@@ -225,6 +245,22 @@ function draw(){
  document.getElementById("cities").textContent=cities.length;
  document.getElementById("nations").textContent=nations.length;
 }
+
+// スライダー表示/非表示切替
+document.getElementById("toggleSliders").onclick = ()=>{
+  let s = document.getElementById("sliders");
+  s.style.display = s.style.display==="none"?"block":"none";
+}
+
+// draw関数内で右上グラフ描画
+if(document.getElementById("showGraph").checked){
+  fill(0,0,0,180); rect(width-160,10,150,80);
+  fill(120,80,80); rect(width-150,20,60,l*60/(l+r+1)); // 共産主義
+  fill(30,80,80); rect(width-80,20,60,r*60/(l+r+1));    // 資本主義
+  fill(0,255,0); text("共産主義",width-150,15);
+  fill(255,165,0); text("資本主義",width-80,15);
+}
+
 </script>
 </body>
 </html>
