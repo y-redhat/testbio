@@ -80,7 +80,7 @@ class Organism{
   this.health=constrain(this.health,0,1);
 
   // リーダーの固定位置
-  if(this.isLeader) this.pos.set(this.side==="L"?borderX*0.15:borderX*0.85,height/2);
+if(this.isLeader) this.pos.set(this.side==="L" ? borderX*0.15 : borderX + borderX*0.25, height/2);
   else if(this.isNationLeader) this.pos.set(this.side==="L"?borderX*0.25:borderX*0.75,height/2);
   else if(warMode) this.warMove();
   else this.move();
