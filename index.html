@@ -48,9 +48,13 @@ class Organism{
   this.age=0;
   this.side=side;
 
-  /* 👶 子供数制限（重要追加・要素削除なし） */
+  /* 👶 子供制限 */
   this.childrenCount=0;
   this.maxChildren=4;
+
+  /* 🕒 繁殖クールダウン（重要追加） */
+  this.reproduceCooldown=0;
+  this.cooldownMax=side==="L"?900:1200;
 
   this.dna={
    size:random(8,12),
@@ -62,6 +66,8 @@ class Organism{
 
  update(){
   this.age++;
+
+  if(this.reproduceCooldown>0) this.reproduceCooldown--;
 
   let baseLoss=this.side==="R"?0.00035:0.00025;
   this.health-=baseLoss;
@@ -112,21 +118,25 @@ class Organism{
   }
  }
 
- /* ================= 繁殖制御（重点修正） ================= */
+ /* ================= 繁殖（完全制御） ================= */
  tryReproduce(other){
   if(this.side!==other.side) return null;
   if(this.health<0.75||other.health<0.75) return null;
+
+  /* 🧱 クールダウン */
+  if(this.reproduceCooldown>0) return null;
+  if(other.reproduceCooldown>0) return null;
 
   /* 👶 子供上限 */
   if(this.childrenCount>=this.maxChildren) return null;
   if(other.childrenCount>=other.maxChildren) return null;
 
-  /* 🧬 交尾確率（低下） */
-  let mateRate=this.side==="L"?0.025:0.012;
+  /* 🧬 交尾確率 */
+  let mateRate=this.side==="L"?0.02:0.01;
   if(random()>mateRate) return null;
 
-  /* 👶 出産確率（さらに低下） */
-  let birthRate=this.side==="L"?0.4:0.3;
+  /* 👶 出産確率 */
+  let birthRate=this.side==="L"?0.35:0.25;
   if(random()>birthRate) return null;
 
   this.health-=0.18;
@@ -134,6 +144,10 @@ class Organism{
 
   this.childrenCount++;
   other.childrenCount++;
+
+  /* 🕒 クールダウンセット */
+  this.reproduceCooldown=this.cooldownMax;
+  other.reproduceCooldown=other.cooldownMax;
 
   let h=new House(
    (this.pos.x+other.pos.x)/2,
@@ -225,6 +239,7 @@ function windowResized(){
 </script>
 </body>
 </html>
+
 
 
 
