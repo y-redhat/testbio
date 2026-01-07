@@ -2,243 +2,321 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>Biotope – Ideology Life</title>
+<title>Ideology Life – Nation</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.6.0/p5.min.js"></script>
 <style>
 body{margin:0;background:#000;overflow:hidden;font-family:monospace}
-#ui{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);color:#0f0}
+#ui{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);color:#0f0}
+#cmd{position:absolute;top:6px;left:50%;transform:translateX(-50%);
+background:#000;color:#0f0;border:1px solid #0f0;padding:4px}
 </style>
 </head>
 <body>
+
+<input id="cmd" placeholder="command: war">
+
 <div id="ui">
 YEAR:<span id="year">0</span> |
 POP:<span id="pop">0</span> |
-LEFT:<span id="left">0</span> |
-RIGHT:<span id="right">0</span>
+COMM:<span id="left">0</span> |
+CAP:<span id="right">0</span> |
+CITIES:<span id="cities">0</span> |
+NATIONS:<span id="nations">0</span>
 </div>
 
 <script>
-/* ================= 世界 ================= */
-let organisms=[], foods=[], houses=[];
-let time=0, year=0;
-let uiYear, uiPop, uiLeft, uiRight;
-let borderX;
+let organisms=[], foods=[], houses=[], cities=[], nations=[];
+let time=0, year=0, borderX;
+let leaders={L:null,R:null};
+let warMode=false;
+let initialPop={L:0,R:0};
 
-/* ================= 家 ================= */
+/* ===== 構造物 ===== */
 class House{
  constructor(x,y,side){
   this.pos=createVector(x,y);
-  this.r=80;
   this.side=side;
+  this.r=70;
  }
  show(){
   noFill();
-  stroke(this.side==="L"?80:200,200,50,60);
+  stroke(this.side==="L"?120:30,60,60,40);
   circle(this.pos.x,this.pos.y,this.r*2);
  }
 }
 
-/* ================= 生物 ================= */
-class Organism{
+class City{
  constructor(x,y,side){
+  this.pos=createVector(x,y);
+  this.side=side;
+  this.r=140;
+ }
+ show(){
+  noFill();
+  stroke(this.side==="L"?120:30,80,80,60);
+  strokeWeight(2);
+  circle(this.pos.x,this.pos.y,this.r*2);
+  strokeWeight(1);
+ }
+}
+
+class Nation{
+ constructor(side){
+  this.side=side;
+  this.center=createVector(
+   side==="L"?borderX*0.25:borderX*0.75,
+   height/2
+  );
+  this.r=280;
+  this.wealth=1000;
+ }
+ taxRate(){ return this.side==="L"?0.08:0.05; }
+ show(){
+  noFill();
+  stroke(this.side==="L"?120:30,100,100,40);
+  strokeWeight(3);
+  circle(this.center.x,this.center.y,this.r*2);
+  strokeWeight(1);
+ }
+}
+
+/* ===== 企業 ===== */
+class Company{
+ constructor(side){
+  this.side=side;
+  this.profit=0;
+ }
+ operate(){
+  this.profit+=this.side==="R"?3:1.5;
+ }
+}
+let companies=[new Company("L"),new Company("R")];
+
+/* ===== 生物 ===== */
+class Organism{
+ constructor(x,y,side,isLeader=false,isNationLeader=false){
   this.pos=createVector(x,y);
   this.vel=p5.Vector.random2D();
   this.acc=createVector();
+  this.side=side;
+  this.isLeader=isLeader;
+  this.isNationLeader=isNationLeader;
   this.health=1;
   this.age=0;
-  this.side=side;
-
-  /* 👶 子供制限 */
+  this.money=5;
   this.childrenCount=0;
   this.maxChildren=4;
-
-  /* 🕒 繁殖クールダウン（重要追加） */
   this.reproduceCooldown=0;
   this.cooldownMax=side==="L"?900:1200;
 
   this.dna={
-   size:random(8,12),
-   speed:side==="R"?random(1.8,2.6):random(1.2,2.0),
-   sense:side==="R"?random(100,140):random(80,120),
-   hue:side==="L"?120:20
+   size:isNationLeader?24:isLeader?18:random(8,12),
+   speed:side==="R"?random(1.8,2.8):random(1.2,2.0),
+   sense:side==="R"?180:140,
+   hue:side==="L"?120:30
   };
  }
 
  update(){
   this.age++;
-
   if(this.reproduceCooldown>0) this.reproduceCooldown--;
 
-  let baseLoss=this.side==="R"?0.00035:0.00025;
-  this.health-=baseLoss;
-
-  for(let h of houses){
-   if(h.side===this.side){
-    let d=p5.Vector.dist(this.pos,h.pos);
-    if(d<h.r){
-     this.health+=this.side==="L"?0.002:0.001;
-    }
-   }
+  if(!this.isLeader&&!this.isNationLeader){
+   this.health-=this.side==="R"?0.00035:0.00025;
   }
+
+  for(let h of houses)
+   if(h.side===this.side&&dist(this.pos.x,this.pos.y,h.pos.x,h.pos.y)<h.r)
+    this.health+=this.side==="L"?0.0025:0.0012;
+
+  for(let c of cities)
+   if(c.side===this.side&&dist(this.pos.x,this.pos.y,c.pos.x,c.pos.y)<c.r)
+    this.health+=this.side==="L"?0.003:0.0015;
+
+  for(let n of nations)
+   if(n.side===this.side&&dist(this.pos.x,this.pos.y,n.center.x,n.center.y)<n.r)
+    this.health+=this.side==="L"?0.0035:0.002;
 
   this.health=constrain(this.health,0,1);
 
-  this.move();
-  this.vel.add(this.acc).limit(this.dna.speed);
+  if(warMode) this.warMove();
+  else this.move();
+
+  this.vel.add(this.acc).limit(this.dna.speed*(0.6+this.health));
   this.pos.add(this.vel);
   this.acc.mult(0);
-  this.edges();
  }
 
  move(){
-  let target=null;
-  let best=1e9;
-
+  let target=null,best=1e9;
   for(let f of foods){
    let d=p5.Vector.dist(this.pos,f);
-   if(d<best && d<this.dna.sense){
-    best=d; target=f;
-   }
+   if(d<this.dna.sense&&d<best){best=d;target=f}
   }
-
   if(target){
-   let dir=p5.Vector.sub(target,this.pos).normalize();
-   this.applyForce(dir.mult(0.25));
+   this.applyForce(p5.Vector.sub(target,this.pos).normalize().mult(0.25));
    if(best<this.dna.size){
     foods.splice(foods.indexOf(target),1);
     this.health+=0.6;
+
+    if(this.side==="L")
+     organisms.forEach(o=>{
+      if(o.side==="L"&&dist(o.pos.x,o.pos.y,this.pos.x,this.pos.y)<100)
+       o.health=min(1,o.health+0.12);
+     });
    }
   }else{
-   if(this.side==="L"){
-    let center=createVector(borderX/2,height/2);
-    this.applyForce(p5.Vector.sub(center,this.pos).normalize().mult(0.05));
-   }else{
-    this.applyForce(p5.Vector.random2D().mult(0.15));
-   }
+   this.applyForce(p5.Vector.random2D().mult(this.side==="L"?0.08:0.18));
   }
  }
 
- /* ================= 繁殖（完全制御） ================= */
- tryReproduce(other){
-  if(this.side!==other.side) return null;
-  if(this.health<0.75||other.health<0.75) return null;
+ warMove(){
+  let enemies=organisms.filter(o=>o.side!==this.side);
+  if(!enemies.length) return;
+  let t=enemies.reduce((a,b)=>dist(this.pos.x,this.pos.y,a.pos.x,a.pos.y)<
+                         dist(this.pos.x,this.pos.y,b.pos.x,b.pos.y)?a:b);
+  this.applyForce(p5.Vector.sub(t.pos,this.pos).normalize().mult(0.4));
 
-  /* 🧱 クールダウン */
-  if(this.reproduceCooldown>0) return null;
-  if(other.reproduceCooldown>0) return null;
+  if(dist(this.pos.x,this.pos.y,t.pos.x,t.pos.y)<this.dna.size*2){
+   let myN=nations.find(n=>n.side===this.side);
+   let chance=map(myN.wealth,500,3000,0.3,0.7,true);
+   (random()<chance)?t.health=0:this.health=0;
+  }
+ }
 
-  /* 👶 子供上限 */
-  if(this.childrenCount>=this.maxChildren) return null;
-  if(other.childrenCount>=other.maxChildren) return null;
+ tryReproduce(o){
+  if(this.side!==o.side||this.isLeader||o.isLeader) return null;
+  if(this.reproduceCooldown||o.reproduceCooldown) return null;
+  if(this.childrenCount>=this.maxChildren||o.childrenCount>=o.maxChildren) return null;
+  if(random()>0.3||random()>0.02) return null;
 
-  /* 🧬 交尾確率 */
-let baseMateRate=this.side==="L"?0.02:0.01;
-
-/* 🧬 交尾成功は30%だけ */
-if(random()>baseMateRate) return null;
-if(random()>0.3) return null;
-
-
-  /* 👶 出産確率 */
-  let birthRate=this.side==="L"?0.35:0.25;
-  if(random()>birthRate) return null;
-
-  this.health-=0.18;
-  other.health-=0.18;
-
-  this.childrenCount++;
-  other.childrenCount++;
-
-  /* 🕒 クールダウンセット */
+  this.childrenCount++; o.childrenCount++;
   this.reproduceCooldown=this.cooldownMax;
-  other.reproduceCooldown=other.cooldownMax;
+  o.reproduceCooldown=o.cooldownMax;
 
-  let h=new House(
-   (this.pos.x+other.pos.x)/2,
-   (this.pos.y+other.pos.y)/2,
+  houses.push(new House(
+   (this.pos.x+o.pos.x)/2,
+   (this.pos.y+o.pos.y)/2,
    this.side
-  );
-  houses.push(h);
-
-  return new Organism(h.pos.x,h.pos.y,this.side);
+  ));
+  return new Organism(this.pos.x,this.pos.y,this.side);
  }
 
  applyForce(f){this.acc.add(f)}
- edges(){
-  if(this.pos.x<0)this.pos.x=0;
-  if(this.pos.x>width)this.pos.x=width;
-  if(this.pos.y<0)this.pos.y=0;
-  if(this.pos.y>height)this.pos.y=height;
- }
- dead(){return this.health<=0||this.age>2200}
-
+ dead(){return !this.isLeader&&!this.isNationLeader&&(this.health<=0||this.age>2400)}
  show(){
-  fill(this.dna.hue,80,100,80);
+  fill(this.dna.hue,80,this.isNationLeader?100:this.isLeader?90:80,90);
   noStroke();
   circle(this.pos.x,this.pos.y,this.dna.size*2);
  }
 }
 
-/* ================= p5 ================= */
+/* ===== 経済 ===== */
+function yearlyEconomy(){
+ nations.forEach(n=>{
+  organisms.filter(o=>o.side===n.side).forEach(o=>{
+   let tax=o.money*n.taxRate();
+   o.money-=tax;
+   n.wealth+=tax;
+  });
+
+  organisms.filter(o=>o.side===n.side).forEach(o=>{
+   o.health+=n.side==="L"?0.05:0.01;
+   o.health=min(1,o.health);
+  });
+ });
+ companies.forEach(c=>c.operate());
+}
+
+/* ===== p5 ===== */
 function setup(){
  createCanvas(windowWidth,windowHeight);
  colorMode(HSB,360,100,100,100);
  borderX=width/2;
 
- uiYear=document.getElementById("year");
- uiPop=document.getElementById("pop");
- uiLeft=document.getElementById("left");
- uiRight=document.getElementById("right");
+ for(let i=0;i<500;i++) foods.push(createVector(random(width),random(height)));
 
- for(let i=0;i<200;i++) foods.push(createVector(random(width),random(height)));
- for(let i=0;i<10;i++) organisms.push(new Organism(random(borderX),random(height),"L"));
- for(let i=0;i<10;i++) organisms.push(new Organism(random(borderX,width),random(height),"R"));
+ leaders.L=new Organism(borderX*0.25,height/2,"L",true);
+ leaders.R=new Organism(borderX*0.75,height/2,"R",true);
+ organisms.push(leaders.L,leaders.R);
+
+ for(let i=0;i<12;i++) organisms.push(new Organism(random(borderX),random(height),"L"));
+ for(let i=0;i<12;i++) organisms.push(new Organism(random(borderX,width),random(height),"R"));
 }
 
+document.getElementById("cmd").addEventListener("keydown",e=>{
+ if(e.key==="Enter"&&e.target.value==="war"){
+  warMode=true;
+  initialPop.L=organisms.filter(o=>o.side==="L").length;
+  initialPop.R=organisms.filter(o=>o.side==="R").length;
+  e.target.value="";
+ }
+});
+
 function draw(){
- time++;
- if(time%60===0) year++;
- background(0,30,15);
+ background(0,30,12);
+ time++; if(time%60===0){year++; yearlyEconomy();}
 
  stroke(0,0,80,40);
  line(borderX,0,borderX,height);
 
- let left=0,right=0;
-
- if(random()<0.35) foods.push(createVector(random(borderX),random(height)));
- if(random()<0.2) foods.push(createVector(random(borderX,width),random(height)));
+ if(random()<0.9) foods.push(createVector(random(borderX),random(height)));
+ if(random()<0.7) foods.push(createVector(random(borderX,width),random(height)));
 
  noStroke();
- fill(100,255,100,120);
- for(let f of foods) circle(f.x,f.y,4);
+ fill(100,80,80,120);
+ foods.forEach(f=>circle(f.x,f.y,4));
 
- for(let h of houses) h.show();
+ if(time%240===0){
+  houses.forEach(h=>{
+   let nearby=houses.filter(o=>o.side===h.side&&dist(o.pos.x,o.pos.y,h.pos.x,h.pos.y)<120);
+   if(nearby.length>=3&&!cities.some(c=>dist(c.pos.x,c.pos.y,h.pos.x,h.pos.y)<100))
+    cities.push(new City(h.pos.x,h.pos.y,h.side));
+  });
+ }
 
+ if(time%600===0){
+  ["L","R"].forEach(s=>{
+   if(cities.filter(c=>c.side===s).length>=2&&!nations.some(n=>n.side===s)){
+    nations.push(new Nation(s));
+    organisms.push(new Organism(
+     s==="L"?borderX*0.2:borderX*0.8,height/2,s,true,true));
+   }
+  });
+ }
+
+ nations.forEach(n=>n.show());
+ cities.forEach(c=>c.show());
+ houses.forEach(h=>h.show());
+
+ let l=0,r=0;
  for(let i=organisms.length-1;i>=0;i--){
   let o=organisms[i];
   o.update(); o.show();
-  o.side==="L"?left++:right++;
-
+  o.side==="L"?l++:r++;
   for(let j=i-1;j>=0;j--){
-   let other=organisms[j];
-   if(p5.Vector.dist(o.pos,other.pos)<o.dna.size*2){
-    let child=o.tryReproduce(other);
-    if(child) organisms.push(child);
-   }
+   let child=o.tryReproduce(organisms[j]);
+   if(child) organisms.push(child);
   }
-
   if(o.dead()) organisms.splice(i,1);
  }
 
- uiYear.textContent=year;
- uiPop.textContent=organisms.length;
- uiLeft.textContent=left;
- uiRight.textContent=right;
-}
+ if(warMode){
+  if(l<=initialPop.L*0.1||r<=initialPop.R*0.1){
+   warMode=false;
+   let win=l>r?"L":"R";
+   for(let i=0;i<100;i++)
+    foods.push(createVector(win==="L"?random(borderX):random(borderX,width),random(height)));
+   foods.splice(0,100);
+  }
+ }
 
-function windowResized(){
- resizeCanvas(windowWidth,windowHeight);
- borderX=width/2;
+ yearSpan.textContent=year;
+ pop.textContent=organisms.length;
+ left.textContent=l;
+ right.textContent=r;
+ cities.textContent=cities.length;
+ nations.textContent=nations.length;
 }
 </script>
 </body>
