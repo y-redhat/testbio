@@ -132,8 +132,12 @@ class Organism{
   if(other.childrenCount>=other.maxChildren) return null;
 
   /* 🧬 交尾確率 */
-  let mateRate=this.side==="L"?0.02:0.01;
-  if(random()>mateRate) return null;
+let baseMateRate=this.side==="L"?0.02:0.01;
+
+/* 🧬 交尾成功は30%だけ */
+if(random()>baseMateRate) return null;
+if(random()>0.3) return null;
+
 
   /* 👶 出産確率 */
   let birthRate=this.side==="L"?0.35:0.25;
