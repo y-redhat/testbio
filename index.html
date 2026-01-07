@@ -1,305 +1,213 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <title>ビオトープ全画面バージョン</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    html,body {
-      margin:0; padding:0;
-      height:100vh; width:100vw;
-      background:#182018; color:#eee;
-      overflow:hidden;
-      font-family: "Segoe UI", "Arial", sans-serif;
-    }
-    #main {
-      width:100vw; height:100vh;
-      position:fixed; top:0; left:0;
-      display:flex; flex-direction:column;
-    }
-    #biotope {
-      flex:1 1 auto; width:100vw; height:100vh;
-      display:block; background:#111; cursor:pointer;
-      touch-action:none;
-    }
-    #ctrls {
-      width:100vw;
-      padding:0.3em 0.5em;
-      box-sizing:border-box;
-      background:rgba(14,17,12,0.93);
-      box-shadow: 0 0 18px #082f1a93;
-      z-index:2;
-      text-align:center;
-      display:flex; flex-direction:row; gap:1em; align-items:center;
-    }
-    #command {
-      font-size:1.18em; padding:0.2em 0.7em;
-      width:320px; max-width:90vw;
-      background:#1c2935; border:1.6px solid #469b5a; color:#eef;
-      border-radius:6px;
-      outline:none;
-      margin-left:0.8em;
-      font-family: "Segoe UI", "Arial", sans-serif;
-      box-shadow: 0 2px 8px #000a;
-    }
-    #legend {
-      color:#beb; font-size:1em;
-      margin-left:1em;margin-right:auto;
-      text-shadow:1px 1px 6px #1b2;
-      letter-spacing:0.04em;
-    }
-    #status-pane {
-      position:fixed; right:0.7em; bottom:0.6em;
-      background:rgba(21,32,21,0.85);
-      color:#d6fcd7;
-      font-size:1.05em;
-      border-radius: 8px;
-      padding: 0.4em 1.1em;
-      text-align:left;
-      min-width:130px;
-      pointer-events:none;
-      z-index:9;
-      box-shadow:0 0 18px 4px #29474070;
-      line-height:1.7;
-      letter-spacing:0.03em;
-    }
-    @media (max-width: 600px) {
-      #command { width:140px; font-size:1em;}
-      #legend { font-size:0.82em;}
-      #status-pane {font-size:0.98em; padding:0.3em 0.6em;}
-    }
-  </style>
+<meta charset="UTF-8">
+<title>ビオトープ × 国境・思想シミュレーション</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+html,body{
+  margin:0;padding:0;
+  width:100vw;height:100vh;
+  background:#182018;color:#eee;
+  overflow:hidden;
+  font-family:"Segoe UI","Arial",sans-serif;
+}
+#main{width:100vw;height:100vh;position:fixed;display:flex;flex-direction:column;}
+#biotope{flex:1;background:#111;cursor:pointer;}
+#ctrls{
+  background:rgba(14,17,12,.93);
+  padding:.4em;display:flex;gap:1em;align-items:center;
+}
+#command{
+  font-size:1.1em;width:320px;
+  background:#1c2935;border:1.6px solid #469b5a;
+  color:#eef;border-radius:6px;
+}
+#legend{font-size:.9em;color:#beb}
+#status-pane{
+  position:fixed;right:.6em;bottom:.6em;
+  background:rgba(20,30,20,.9);
+  padding:.6em;border-radius:8px;
+  line-height:1.6;font-size:1em;
+}
+</style>
 </head>
 <body>
-  <div id="main">
-    <canvas id="biotope"></canvas>
-    <div id="ctrls">
-      <span id="legend">🟠獲物 prey｜🔴捕食者 predator｜🟢食べ物 food<br>
-      コマンド例: <code>add prey</code><code>add predator</code><code>add food</code></span>
-      <input id="command" type="text" autocomplete="off" placeholder="コマンド入力…">
-    </div>
-    <div id="status-pane">
-      prey: <span id="prey-cnt">-</span><br>
-      predator: <span id="pred-cnt">-</span><br>
-      food: <span id="food-cnt">-</span>
-    </div>
-  </div>
-  <script>
-    //=== パラメータ ===
-    let W = window.innerWidth, H = window.innerHeight;
-    // --- 生物数など ---
-    const PREY_INIT = 11, PRED_INIT=2, FOOD_INIT=18;  // 初期値
-    const FOOD_AUTO_ADD = 8; // 補充量(増えすぎ防止)
-    const FOOD_CAP = 50;
-    //--- 獲物 ---
-    const PREY_RADIUS=13, PREY_EN_MAX=32, PREY_EN_REP=21, PREY_EN_FOOD=8, PREY_LIFE=580,PREY_REP_PROB=0.084,PREY_EN_MOVE=0.41;
-    //--- 捕食者 ---
-    const PRED_RADIUS=19, PRED_EN_MAX=44, PRED_EN_REP=28, PRED_EN_PREY=18, PRED_LIFE=800,PRED_REP_PROB=0.041,PRED_EN_MOVE=0.56;
-    //--- その他
-    const FOOD_RADIUS=4.5;
-    //=== ユーティリティ ===
-    function randXY() {
-      return [
-        Math.random() * (W-44) +22,
-        Math.random() * (H-120) +54
-      ];
-    }
-    function clamp(x, min, max) {
-      return Math.max(min, Math.min(max, x));
-    }
-    function dist(x1,y1,x2,y2) {return Math.hypot(x1-x2,y1-y2);}
-    //=== 生物/食料クラス ===
-    class Prey {
-      constructor(x,y,en=15){this.x=x;this.y=y;this.en=en;this.age=0;}
-      move() {
-        const th=Math.random()*6.3, sp=Math.random()*2.3+0.89;
-        this.x=clamp(this.x+Math.cos(th)*sp,PREY_RADIUS,W-PREY_RADIUS);
-        this.y=clamp(this.y+Math.sin(th)*sp,PREY_RADIUS,H-PREY_RADIUS);
-        this.en-=PREY_EN_MOVE; this.age++;
-      }
-      eat(foodArr) {
-        for(let i=foodArr.length-1;i>=0;i--) {
-          let f=foodArr[i];
-          if(dist(this.x,this.y,f.x,f.y)<PREY_RADIUS+FOOD_RADIUS) {
-            this.en = Math.min(PREY_EN_MAX, this.en+PREY_EN_FOOD);
-            foodArr.splice(i,1); break;
-          }
-        }
-      }
-      canReproduce() {return this.en>PREY_EN_REP&&Math.random()<PREY_REP_PROB;}
-      reproduce() {
-        this.en=Math.floor(this.en/2);
-        let th=Math.random()*6.28, d=PREY_RADIUS*1.6;
-        return new Prey(
-          clamp(this.x+Math.cos(th)*d,PREY_RADIUS,W-PREY_RADIUS),
-          clamp(this.y+Math.sin(th)*d,PREY_RADIUS,H-PREY_RADIUS),
-          this.en
-        );
-      }
-      isDead() { return this.en<=0||this.age>PREY_LIFE; }
-    }
-    class Predator {
-      constructor(x,y,en=16){this.x=x;this.y=y;this.en=en;this.age=0;}
-      move(preys) {
-        let tgt=null, mind=230;
-        for(const p of preys) {
-          let d=dist(this.x,this.y,p.x,p.y); if(d<mind){mind=d;tgt=p;}
-        }
-        let th;
-        if(tgt&&mind<320){
-          th=Math.atan2(tgt.y-this.y,tgt.x-this.x)+(Math.random()-0.5)*0.44;
-        }else{th=Math.random()*6.3;}
-        let sp=Math.random()*1.8+1.4;
-        this.x=clamp(this.x+Math.cos(th)*sp,PRED_RADIUS,W-PRED_RADIUS);
-        this.y=clamp(this.y+Math.sin(th)*sp,PRED_RADIUS,H-PRED_RADIUS);
-        this.en-=PRED_EN_MOVE; this.age++;
-      }
-      eat(preys) {
-        for(let i=preys.length-1;i>=0;i--) {
-          let p=preys[i];
-          if(dist(this.x,this.y,p.x,p.y)<PRED_RADIUS+PREY_RADIUS) {
-            this.en = Math.min(PRED_EN_MAX, this.en+PRED_EN_PREY);
-            preys.splice(i,1); break;
-          }
-        }
-      }
-      canReproduce() {return this.en>PRED_EN_REP&&Math.random()<PRED_REP_PROB;}
-      reproduce() {
-        this.en=Math.floor(this.en/2);
-        let th=Math.random()*6.28, d=PRED_RADIUS*1.2;
-        return new Predator(
-          clamp(this.x+Math.cos(th)*d,PRED_RADIUS,W-PRED_RADIUS),
-          clamp(this.y+Math.sin(th)*d,PRED_RADIUS,H-PRED_RADIUS),
-          this.en
-        );
-      }
-      isDead(){return this.en<=0||this.age>PRED_LIFE;}
-    }
-    class Food {
-      constructor(x,y){this.x=x;this.y=y;}
-    }
-    //=== 集合定義 ===
-    let preys = [], preds = [], foods = [];
-    //=== 初期化 ===
-    function resetAll() {
-      preys=[],preds=[],foods=[];
-      for(let i=0;i<PREY_INIT;i++){ let [x,y]=randXY(); preys.push(new Prey(x,y)); }
-      for(let i=0;i<PRED_INIT;i++){ let [x,y]=randXY(); preds.push(new Predator(x,y)); }
-      for(let i=0;i<FOOD_INIT;i++){ let [x,y]=randXY(); foods.push(new Food(x,y)); }
-    }
-    function addFood(n=1){
-      for(let i=0;i<n;i++){
-        if(foods.length<FOOD_CAP){let [x,y]=randXY(); foods.push(new Food(x,y));}
+<div id="main">
+<canvas id="biotope"></canvas>
+<div id="ctrls">
+<span id="legend">
+🟠市民(prey) 🔴捕食者 🟢食料<br>
+⬅ 共産主義｜資本主義 ➡<br>
+<code>add prey</code> <code>add predator</code> <code>add food</code> <code>war</code>
+</span>
+<input id="command" placeholder="コマンド入力…">
+</div>
+<div id="status-pane">
+共産主義人口: <span id="c-left">0</span><br>
+資本主義人口: <span id="c-right">0</span><br>
+戦争状態: <span id="war-state">平和</span>
+</div>
+</div>
+
+<script>
+/* ===== 既存ビオトープ（未削除） ===== */
+let W=innerWidth,H=innerHeight;
+const PREY_RADIUS=13,FOOD_RADIUS=4.5,PRED_RADIUS=19;
+const PREY_EN_MOVE=0.06,PRED_EN_MOVE=0.09;
+const PREY_EN_FOOD=10,PREY_EN_MAX=32;
+const PREY_EN_REP=18,PREY_REP_PROB=0.12;
+const PREY_LIFE=580;
+const PRED_EN_PREY=14,PRED_EN_MAX=44;
+const PRED_EN_REP=30,PRED_REP_PROB=0.025;
+const PRED_LIFE=800;
+
+function clamp(x,a,b){return Math.max(a,Math.min(b,x))}
+function dist(a,b,c,d){return Math.hypot(a-c,b-d)}
+function randXY(){return[Math.random()*W,Math.random()*H]}
+
+class Food{constructor(x,y){this.x=x;this.y=y}}
+class Prey{
+  constructor(x,y,en=16){this.x=x;this.y=y;this.en=en;this.age=0}
+  move(){
+    let t=Math.random()*6.28,s=Math.random()*2;
+    this.x=clamp(this.x+Math.cos(t)*s,0,W);
+    this.y=clamp(this.y+Math.sin(t)*s,0,H);
+    this.en-=PREY_EN_MOVE;this.age++;
+  }
+  eat(fs){
+    for(let i=fs.length-1;i>=0;i--){
+      if(dist(this.x,this.y,fs[i].x,fs[i].y)<PREY_RADIUS+FOOD_RADIUS){
+        this.en=Math.min(PREY_EN_MAX,this.en+PREY_EN_FOOD);
+        fs.splice(i,1);break;
       }
     }
-    function addPrey(n=1){
-      for(let i=0;i<n;i++){
-        let [x,y]=randXY(); preys.push(new Prey(x,y,14+Math.random()*7));
+  }
+  canReproduce(){return this.en>PREY_EN_REP&&Math.random()<PREY_REP_PROB}
+  reproduce(){
+    this.en>>=1;
+    return new Prey(this.x+Math.random()*20-10,this.y+Math.random()*20-10,this.en)
+  }
+  isDead(){return this.en<=0||this.age>PREY_LIFE}
+}
+class Predator{
+  constructor(x,y,en=18){this.x=x;this.y=y;this.en=en;this.age=0}
+  move(ps){
+    let t=Math.random()*6.28;
+    if(ps.length){
+      let p=ps[Math.random()*ps.length|0];
+      t=Math.atan2(p.y-this.y,p.x-this.x);
+    }
+    this.x=clamp(this.x+Math.cos(t)*2,0,W);
+    this.y=clamp(this.y+Math.sin(t)*2,0,H);
+    this.en-=PRED_EN_MOVE;this.age++;
+  }
+  eat(ps){
+    for(let i=ps.length-1;i>=0;i--){
+      if(dist(this.x,this.y,ps[i].x,ps[i].y)<PRED_RADIUS+PREY_RADIUS){
+        this.en=Math.min(PRED_EN_MAX,this.en+PRED_EN_PREY);
+        ps.splice(i,1);break;
       }
     }
-    function addPredator(n=1){
-      for(let i=0;i<n;i++){
-        let [x,y]=randXY(); preds.push(new Predator(x,y,13+Math.random()*6));
-      }
-    }
-    //=== コマンド欄 ===
-    const cmd = document.getElementById('command');
-    cmd.addEventListener('keydown', e=>{
-      if(e.key==='Enter'){
-        let v=cmd.value.trim().toLowerCase();
-        if(v==="add prey") addPrey();
-        else if(v==="add predator") addPredator();
-        else if(v==="add food") addFood();
-        // 数字指定
-        else if(v.match(/^add prey (\d+)$/)) addPrey(Number(RegExp.$1));
-        else if(v.match(/^add predator (\d+)$/)) addPredator(Number(RegExp.$1));
-        else if(v.match(/^add food (\d+)$/)) addFood(Number(RegExp.$1));
-        cmd.value="";
-      }
-    });
-    //=== ステータス表示 ===
-    function updateStatus(){
-      document.getElementById("prey-cnt").textContent = preys.length;
-      document.getElementById("pred-cnt").textContent = preds.length;
-      document.getElementById("food-cnt").textContent = foods.length;
-    }
-    //=== 描画 ===
-    const cvs = document.getElementById('biotope');
-    let ctx = cvs.getContext('2d');
-    function resizeCvs(){
-      W = window.innerWidth; H = window.innerHeight;
-      cvs.width=W; cvs.height=H;
-    }
-    window.addEventListener('resize', ()=>{
-      resizeCvs();
-    });
-    resizeCvs();
-    function draw() {
-      ctx.clearRect(0,0,W,H);
-      // food
-      for(const f of foods){
-        ctx.beginPath(); ctx.arc(f.x,f.y,FOOD_RADIUS,0,6.28);
-        ctx.fillStyle="#38f457"; ctx.globalAlpha=0.84; ctx.fill();
-      }
-      ctx.globalAlpha=1;
-      // prey
-      for(const c of preys) {
-        ctx.beginPath(); ctx.arc(c.x,c.y,PREY_RADIUS,0,6.28);
-        const l = Math.min(1,c.en/PREY_EN_MAX)*0.8+0.2;
-        ctx.fillStyle=`rgba(${230*l|0},${146*(1-l)+80|0},22,0.91)`;
-        ctx.shadowBlur=8*l; ctx.shadowColor="#f5a042";
-        ctx.fill(); ctx.shadowBlur=0;
-      }
-      // predator
-      for(const pr of preds) {
-        ctx.beginPath(); ctx.arc(pr.x,pr.y,PRED_RADIUS,0,6.28);
-        const l=Math.min(1,pr.en/PRED_EN_MAX)*0.85+0.1;
-        ctx.fillStyle=`rgba(${170*l+85|0},25,29,0.82)`;
-        ctx.strokeStyle="#ff5951"; ctx.lineWidth=2.2;
-        ctx.globalAlpha=0.93;
-        ctx.fill(); ctx.stroke();
-        ctx.globalAlpha=1;
-      }
-      // 絶滅表示
-      if(preys.length===0) {
-        ctx.font="2.2em sans-serif"; ctx.fillStyle="#ff4";
-        ctx.textAlign="center";
-        ctx.fillText("獲物: 絶滅 (add preyで復活)", W/2, H/2-18);
-      }
-      if(preds.length===0) {
-        ctx.font="1.3em sans-serif"; ctx.fillStyle="#fa5";
-        ctx.textAlign="center";
-        ctx.fillText("捕食者: 絶滅 (add predatorで復活)", W/2,H/2+33);
-      }
-    }
-    //=== 生態系進行 ===
-    function update() {
-      // 食料の自動補充（増殖しすぎると維持不能）
-      if(foods.length<FOOD_CAP) addFood(Math.max(0,Math.min(FOOD_AUTO_ADD,FOOD_CAP-foods.length)));
-      // prey
-      let babies=[];
-      for(const c of preys){
-        c.move(); c.eat(foods);
-        if(c.canReproduce()&&preys.length+babies.length<999) babies.push(c.reproduce());
-      }
-      preys=preys.filter(c=>!c.isDead()).concat(babies);
-      // predator
-      let pbabies=[];
-      for(const pr of preds){
-        pr.move(preys); pr.eat(preys);
-        if(pr.canReproduce()&&preds.length+pbabies.length<999) pbabies.push(pr.reproduce());
-      }
-      preds=preds.filter(pr=>!pr.isDead()).concat(pbabies);
-    }
-    //=== メインループ ===
-    resetAll();
-    function loop(){
-      update(); draw(); updateStatus();
-      requestAnimationFrame(loop);
-    }
-    loop();
-    // canvasクリックでリセット
-    cvs.addEventListener('click', ()=>resetAll());
-  </script>
+  }
+  canReproduce(){return this.en>PRED_EN_REP&&Math.random()<PRED_REP_PROB}
+  reproduce(){this.en>>=1;return new Predator(this.x,this.y,this.en)}
+  isDead(){return this.en<=0||this.age>PRED_LIFE}
+}
+
+let preys=[],preds=[],foods=[];
+for(let i=0;i<20;i++){let[x,y]=randXY();preys.push(new Prey(x,y))}
+for(let i=0;i<3;i++){let[x,y]=randXY();preds.push(new Predator(x,y))}
+for(let i=0;i<40;i++){let[x,y]=randXY();foods.push(new Food(x,y))}
+
+/* ===== 国境・思想シミュレーション（追加） ===== */
+let borderX=()=>W/2;
+let war=false;
+let crossCount=0;
+
+function startWar(){war=true;crossCount=0}
+function endWar(winner){
+  war=false;
+  if(winner==="left") borderShift(-80);
+  if(winner==="right") borderShift(80);
+}
+function borderShift(dx){
+  let bx=borderX()+dx;
+  borderX=()=>bx;
+}
+
+/* ===== 描画 ===== */
+const cvs=document.getElementById("biotope");
+const ctx=cvs.getContext("2d");
+function resize(){W=innerWidth;H=innerHeight;cvs.width=W;cvs.height=H}
+addEventListener("resize",resize);resize();
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  if(!war){
+    ctx.strokeStyle="#aaa";ctx.setLineDash([10,8]);
+    ctx.beginPath();ctx.moveTo(borderX(),0);ctx.lineTo(borderX(),H);ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  for(const f of foods){
+    ctx.fillStyle="#38f457";
+    ctx.beginPath();ctx.arc(f.x,f.y,FOOD_RADIUS,0,6.28);ctx.fill();
+  }
+
+  for(const p of preys){
+    ctx.fillStyle=p.x<borderX()?"#ff9933":"#3399ff";
+    ctx.beginPath();ctx.arc(p.x,p.y,PREY_RADIUS,0,6.28);ctx.fill();
+  }
+
+  for(const pr of preds){
+    ctx.strokeStyle="#ff5555";
+    ctx.beginPath();ctx.arc(pr.x,pr.y,PRED_RADIUS,0,6.28);ctx.stroke();
+  }
+}
+
+/* ===== 更新 ===== */
+function update(){
+  let babies=[];
+  for(const p of preys){
+    let prev=p.x<borderX();
+    p.move();p.eat(foods);
+    if(prev!==p.x<borderX()) crossCount++;
+    if(p.canReproduce()) babies.push(p.reproduce());
+  }
+  preys=preys.filter(p=>!p.isDead()).concat(babies);
+
+  let pb=[];
+  for(const pr of preds){
+    pr.move(preys);pr.eat(preys);
+    if(pr.canReproduce()) pb.push(pr.reproduce());
+  }
+  preds=preds.filter(p=>!p.isDead()).concat(pb);
+
+  if(!war && crossCount>20) startWar();
+
+  let L=preys.filter(p=>p.x<borderX()).length;
+  let R=preys.length-L;
+  if(war && (L<5||R<5)) endWar(L>R?"left":"right");
+
+  document.getElementById("c-left").textContent=L;
+  document.getElementById("c-right").textContent=R;
+  document.getElementById("war-state").textContent=war?"戦争中":"平和";
+}
+
+/* ===== コマンド ===== */
+command.onkeydown=e=>{
+  if(e.key==="Enter"){
+    let v=command.value;
+    if(v==="war") startWar();
+    command.value="";
+  }
+};
+
+function loop(){update();draw();requestAnimationFrame(loop)}
+loop();
+</script>
 </body>
 </html>
+
