@@ -46,7 +46,11 @@ class Organism{
   this.acc=createVector();
   this.health=1;
   this.age=0;
-  this.side=side; // L or R
+  this.side=side;
+
+  /* 👶 子供数制限（重要追加・要素削除なし） */
+  this.childrenCount=0;
+  this.maxChildren=4;
 
   this.dna={
    size:random(8,12),
@@ -59,11 +63,9 @@ class Organism{
  update(){
   this.age++;
 
-  // ☘ 生存改善（思想差）
   let baseLoss=this.side==="R"?0.00035:0.00025;
   this.health-=baseLoss;
 
-  // 🏠 家の近くで回復（左優遇）
   for(let h of houses){
    if(h.side===this.side){
     let d=p5.Vector.dist(this.pos,h.pos);
@@ -101,35 +103,46 @@ class Organism{
     this.health+=0.6;
    }
   }else{
-   // 思想差移動
    if(this.side==="L"){
-    // 集団行動
     let center=createVector(borderX/2,height/2);
     this.applyForce(p5.Vector.sub(center,this.pos).normalize().mult(0.05));
    }else{
-    // 探索型
     this.applyForce(p5.Vector.random2D().mult(0.15));
    }
   }
  }
 
+ /* ================= 繁殖制御（重点修正） ================= */
  tryReproduce(other){
   if(this.side!==other.side) return null;
-  if(this.health<0.7||other.health<0.7) return null;
+  if(this.health<0.75||other.health<0.75) return null;
 
-  let rate=this.side==="L"?0.06:0.03;
-  if(random()<rate){
-   this.health-=0.15;
-   other.health-=0.15;
-   let h=new House(
-    (this.pos.x+other.pos.x)/2,
-    (this.pos.y+other.pos.y)/2,
-    this.side
-   );
-   houses.push(h);
-   return new Organism(h.pos.x,h.pos.y,this.side);
-  }
-  return null;
+  /* 👶 子供上限 */
+  if(this.childrenCount>=this.maxChildren) return null;
+  if(other.childrenCount>=other.maxChildren) return null;
+
+  /* 🧬 交尾確率（低下） */
+  let mateRate=this.side==="L"?0.025:0.012;
+  if(random()>mateRate) return null;
+
+  /* 👶 出産確率（さらに低下） */
+  let birthRate=this.side==="L"?0.4:0.3;
+  if(random()>birthRate) return null;
+
+  this.health-=0.18;
+  other.health-=0.18;
+
+  this.childrenCount++;
+  other.childrenCount++;
+
+  let h=new House(
+   (this.pos.x+other.pos.x)/2,
+   (this.pos.y+other.pos.y)/2,
+   this.side
+  );
+  houses.push(h);
+
+  return new Organism(h.pos.x,h.pos.y,this.side);
  }
 
  applyForce(f){this.acc.add(f)}
@@ -154,7 +167,7 @@ function setup(){
  colorMode(HSB,360,100,100,100);
  borderX=width/2;
 
- uiYear=yearEl=document.getElementById("year");
+ uiYear=document.getElementById("year");
  uiPop=document.getElementById("pop");
  uiLeft=document.getElementById("left");
  uiRight=document.getElementById("right");
@@ -169,7 +182,6 @@ function draw(){
  if(time%60===0) year++;
  background(0,30,15);
 
- // 国境（見える）
  stroke(0,0,80,40);
  line(borderX,0,borderX,height);
 
@@ -213,5 +225,6 @@ function windowResized(){
 </script>
 </body>
 </html>
+
 
 
